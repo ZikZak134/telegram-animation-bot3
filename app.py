@@ -11,7 +11,7 @@ import torch
 
 app = Flask(__name__)
 
-# Настройка logging для отладки
+# Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def load_model():
     global pipe
     if pipe is None:
         try:
-            model_id = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"  # Легкая версия для теста
+            model_id = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
             vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32, cache_dir=os.environ['HF_HOME'])
             pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16, cache_dir=os.environ['HF_HOME'])
             pipe.to("cpu")
@@ -79,19 +79,22 @@ dispatcher.add_handler(MessageHandler(Filters.photo, handle_photo))
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    logger.info("Получен webhook-запрос от Telegram")
-    if request.method == "POST":
+    logger.info("Получен POST запрос на /webhook")
+    if request.method == 'POST':
         update = Update.de_json(request.get_json(force=True), bot)
+        logger.debug(f"Обработка обновления: {update}")
         dispatcher.process_update(update)
         logger.info("Webhook обработан")
         return "ok", 200
-    abort(400)
+    logger.warning("Получен некорректный метод запроса")
+    abort(405)  # Явно возвращаем 405 для GET
 
 @app.route('/', methods=['GET'])
 def home():
-    return "Bot is running", 200  # Для теста
+    logger.info("Получен GET запрос на /")
+    return "Bot is running", 200
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 7860))  # Используем $PORT от Railway
+    port = int(os.environ.get("PORT", 7860))
     logger.info(f"Запуск на порту {port}")
     app.run(host='0.0.0.0', port=port)
