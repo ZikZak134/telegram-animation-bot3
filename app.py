@@ -11,7 +11,6 @@ import torch
 
 app = Flask(__name__)
 
-# Настройка логирования
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -29,22 +28,27 @@ def load_model():
     global pipe
     if pipe is None:
         try:
+            logger.info("Начало загрузки модели...")
             model_id = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
             vae = AutoencoderKLWan.from_pretrained(model_id, subfolder="vae", torch_dtype=torch.float32, cache_dir=os.environ['HF_HOME'])
             pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16, cache_dir=os.environ['HF_HOME'])
             pipe.to("cpu")
-            logger.info("Модель загружена!")
+            logger.info("Модель загружена успешно!")
         except Exception as e:
             logger.error(f"Ошибка загрузки модели: {e}")
             pipe = None
+            raise
 
 def generate_video(image_path, prompt, chat_id):
-    load_model()
     if pipe is None:
-        bot.send_message(chat_id, "Ошибка модели.")
+        bot.send_message(chat_id, "Модель загружается... первый раз может занять 5-10 мин.")
+        load_model()
+    if pipe is None:
+        bot.send_message(chat_id, "Ошибка загрузки модели. Попробуйте позже.")
         return
     try:
         image = Image.open(image_path).convert("RGB").resize((832, 480))
+        logger.info("Генерация видео начата...")
         output = pipe(
             prompt=prompt or "Реалистичное движение",
             negative_prompt="размыто, низкое качество, статично",
@@ -59,20 +63,20 @@ def generate_video(image_path, prompt, chat_id):
         os.remove(video_path)
         logger.info("Видео отправлено!")
     except Exception as e:
-        bot.send_message(chat_id, f"Ошибка: {str(e)}")
-        logger.error(f"Ошибка генерации: {e}")
+        bot.send_message(chat_id, f"Ошибка генерации: {str(e)}")
+        logger.error(f"Ошибка: {e}")
 
 def start(update, context):
     update.message.reply_text("Отправьте фото для видео!")
-    logger.info("Получена команда /start")
+    logger.info("Команда /start получена")
 
 def handle_photo(update, context):
-    update.message.reply_text("Обрабатываю...")
+    update.message.reply_text("Обрабатываю... (5-10 мин для первой генерации)")
     photo = update.message.photo[-1].get_file()
     photo.download("input.jpg")
     prompt = update.message.caption or None
     threading.Thread(target=generate_video, args=("input.jpg", prompt, update.message.chat_id)).start()
-    logger.info("Получено фото, генерация запущена")
+    logger.info("Фото получено, генерация запущена")
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.photo, handle_photo))
@@ -82,12 +86,12 @@ def webhook():
     logger.info("Получен POST запрос на /webhook")
     if request.method == 'POST':
         update = Update.de_json(request.get_json(force=True), bot)
-        logger.debug(f"Обработка обновления: {update}")
+        logger.debug(f"Обновление: {update}")
         dispatcher.process_update(update)
         logger.info("Webhook обработан")
         return "ok", 200
-    logger.warning("Получен некорректный метод запроса")
-    abort(405)  # Явно возвращаем 405 для GET
+    logger.warning("Некорректный метод запроса")
+    abort(405)
 
 @app.route('/', methods=['GET'])
 def home():
