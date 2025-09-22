@@ -1,4 +1,5 @@
-FROM python:3.10-slim  # Slim-версия для ускорения
+FROM python:3.10-slim
+# Slim-версия для ускорения
 
 # Устанавливаем системные зависимости для компиляции (если нужно для torch)
 RUN apt-get update && apt-get install -y \
