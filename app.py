@@ -54,7 +54,7 @@ def generate_video(image_path, prompt, chat_id):
             negative_prompt="размыто, низкое качество, статично",
             height=480,
             width=832,
-            num_frames=10,
+            num_frames=5,  # Уменьшено до 5 для экономии памяти
             guidance_scale=5.0
         ).frames[0]
         video_path = "output.mp4"
